@@ -70,36 +70,51 @@ public:
 	m_length = m_eaf.getFileLengthFrames();
 	m_eaf.getFileChannelLayout(&m_channel_layout);
 
-	bool isMDCT = (m_iasbd.mFormatID == FOURCC('a','a','c',' ') ||
-		       m_iasbd.mFormatID == FOURCC('a','a','c','h') ||
-		       m_iasbd.mFormatID == FOURCC('a','a','c','p') ||
-		       m_iasbd.mFormatID == FOURCC('.','m','p','1') ||
-		       m_iasbd.mFormatID == FOURCC('.','m','p','2') ||
-		       m_iasbd.mFormatID == FOURCC('.','m','p','3'));
-	unsigned bytesPerSample;
-	if (m_iasbd.mFormatID == 'alac')
-	    bytesPerSample =
-		m_iasbd.mFormatFlags == 1 ? 2
-					  : m_iasbd.mFormatFlags == 4 ? 4
-					 			      : 3;
-	else if (isMDCT)
-	    bytesPerSample = 4;
-	else
-	    bytesPerSample = 2;
-
 	m_oasbd = m_iasbd;
-	m_oasbd.mFormatID = FOURCC('l','p','c','m');
-	m_oasbd.mFormatFlags = kAudioFormatFlagIsPacked;
-	if (isMDCT)
-	    m_oasbd.mFormatFlags |= kAudioFormatFlagIsFloat;
-	else
-	    m_oasbd.mFormatFlags |= kAudioFormatFlagIsSignedInteger;
-	m_oasbd.mBitsPerChannel = bytesPerSample << 3;
+	if (m_iasbd.mFormatID == 'lpcm') {
+	    m_oasbd.mFormatFlags &= 0xf;
+	    if (m_iasbd.mBitsPerChannel & 0x7)
+		m_oasbd.mFormatFlags |= kAudioFormatFlagIsAlignedHigh;
+	    m_oasbd.mFormatFlags &= ~kAudioFormatFlagIsBigEndian;
+	    if (m_iasbd.mBitsPerChannel == 8)
+		m_oasbd.mFormatFlags &= ~kAudioFormatFlagIsSignedInteger;
+	} else {
+	    // XXX
+	    // Seems no way to obtain reasonable decoding bit depth
+	    bool isFloat = (m_iasbd.mFormatID == FOURCC('a','a','c',' ') ||
+			    m_iasbd.mFormatID == FOURCC('a','a','c','h') ||
+			    m_iasbd.mFormatID == FOURCC('a','a','c','p') ||
+			    m_iasbd.mFormatID == FOURCC('.','m','p','1') ||
+			    m_iasbd.mFormatID == FOURCC('.','m','p','2') ||
+			    m_iasbd.mFormatID == FOURCC('.','m','p','3') ||
+			    m_iasbd.mFormatID == FOURCC('a','c','-','3') ||
+			    m_iasbd.mFormatID == FOURCC('c','a','c','3') ||
+			    m_iasbd.mFormatID == FOURCC('t','w','v','q'));
+
+	    if (m_iasbd.mFormatID == 'alac') {
+		unsigned tab[] = { 16, 20, 24, 32 };
+		unsigned index = (m_iasbd.mFormatFlags - 1) & 0x3;
+		m_oasbd.mBitsPerChannel = tab[index];
+	    } else if (isFloat)
+		m_oasbd.mBitsPerChannel = 32;
+	    else
+		m_oasbd.mBitsPerChannel = 16;
+
+	    m_oasbd.mFormatID = FOURCC('l','p','c','m');
+	    m_oasbd.mFormatFlags =
+		(m_oasbd.mBitsPerChannel & 0x7) ? kAudioFormatFlagIsAlignedHigh
+						: kAudioFormatFlagIsPacked;
+	    if (isFloat)
+		m_oasbd.mFormatFlags |= kAudioFormatFlagIsFloat;
+	    else
+		m_oasbd.mFormatFlags |= kAudioFormatFlagIsSignedInteger;
+	}
 	m_oasbd.mFramesPerPacket = 1;
-	m_oasbd.mBytesPerPacket = m_oasbd.mBytesPerFrame =
-	    m_oasbd.mChannelsPerFrame * bytesPerSample; 
+	m_oasbd.mBytesPerFrame = m_oasbd.mChannelsPerFrame *
+	    ((m_oasbd.mBitsPerChannel + 7) >> 3);
+	m_oasbd.mBytesPerPacket = m_oasbd.mBytesPerFrame;
 	m_eaf.setClientDataFormat(m_oasbd);
-     }
+    }
 
     int64_t length() const { return m_length; }
 
@@ -168,9 +183,11 @@ public:
 	if (acl) {
 	    std::vector<char> ichannels, ochannels;
 	    chanmap::getChannels(acl, &ichannels);
-	    chanmap::convertFromAppleLayout(ichannels, &ochannels);
-	    m_chanmask = chanmap::getChannelMask(ochannels);
-	    chanmap::getMappingToUSBOrder(ochannels, &m_chanmap);
+	    if (ichannels.size()) {
+		chanmap::convertFromAppleLayout(ichannels, &ochannels);
+		m_chanmask = chanmap::getChannelMask(ochannels);
+		chanmap::getMappingToUSBOrder(ochannels, &m_chanmap);
+	    }
 	}
 	std::string header = buildHeader();
 
@@ -218,7 +235,8 @@ private:
 	std::streambuf *sb = ss.rdbuf();
 	uint16_t format = 1; // WAVE_FORMAT_PCM
 	if ((m_chanmask && m_asbd.mChannelsPerFrame > 2) ||
-	    m_asbd.mBitsPerChannel > 16)
+	    m_asbd.mBitsPerChannel > 16 ||
+	    (m_asbd.mBitsPerChannel & 0x7) != 0)
 	    format = 0xfffe; // WAVE_FORMAT_EXTENSIBLE
 	put(sb, format);
 	put(sb, static_cast<int16_t>(m_asbd.mChannelsPerFrame));
@@ -226,7 +244,8 @@ private:
 	int32_t bytes_per_sec = m_asbd.mSampleRate * m_asbd.mBytesPerFrame;
 	put(sb, bytes_per_sec);
 	put(sb, static_cast<int16_t>(m_asbd.mBytesPerFrame));
-	put(sb, static_cast<int16_t>(m_asbd.mBitsPerChannel));
+	uint16_t bpc = (m_asbd.mBytesPerFrame / m_asbd.mChannelsPerFrame) << 3;
+	put(sb, bpc);
 	if (format == 0xfffe) {
 	    put(sb, static_cast<int16_t>(22));
 	    put(sb, static_cast<int16_t>(m_asbd.mBitsPerChannel));
