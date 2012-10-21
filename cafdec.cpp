@@ -54,15 +54,17 @@ public:
 	    throw std::runtime_error(ss.str());
 	}
 	m_iaf.attach(iafid, true);
+#ifndef _DEBUG
 	if (m_iaf.getFileFormat() != FOURCC('c','a','f','f'))
 	    throw std::runtime_error("Not a CAF file");
-
+#endif
 	std::vector<AudioFormatListItem> aflist;
 	m_iaf.getFormatList(&aflist);
 	m_iasbd = aflist[0].mASBD;
+#ifndef _DEBUG
 	if (m_iasbd.mFormatID == FOURCC('a','a','c','p'))
 	    throw std::runtime_error("HE-AACv2 is not supported");
-
+#endif
 	ExtAudioFileRef eaf;
 	CHECKCA(ExtAudioFileWrapAudioFileID(m_iaf, false, &eaf));
 	m_eaf.attach(eaf, true);
@@ -134,6 +136,7 @@ public:
     {
 	AudioBufferList abl = { 0 };
 	abl.mNumberBuffers = 1;
+	abl.mBuffers[0].mNumberChannels = m_oasbd.mChannelsPerFrame;
 	abl.mBuffers[0].mData = buffer;
 	abl.mBuffers[0].mDataByteSize = nsamples * m_oasbd.mBytesPerPacket;
 	UInt32 ns = nsamples;
