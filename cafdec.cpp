@@ -10,138 +10,35 @@
 #include "utf8_codecvt_facet.hpp"
 #include "strutil.h"
 #include "util.h"
-#include "ExtAudioFileX.h"
-#include "chanmap.h"
+#include "CAFDecoder.h"
 
-namespace callback {
-    const int ioErr = -36;
-
-    OSStatus read(void *cookie, SInt64 pos, UInt32 count, void *data,
-		  UInt32 *nread)
-    {
-	FILE *fp = static_cast<FILE*>(cookie);
-	if (fseeko(fp, pos, SEEK_SET) == -1)
-	    return ioErr;
-	*nread = std::fread(data, 1, count, fp);
-	return *nread >= 0 ? 0 : ioErr;
-    }
-    SInt64 size(void *cookie)
-    {
-	FILE *fp = static_cast<FILE*>(cookie);
-	return _filelengthi64(_fileno(fp));
-    }
-}
-
-class CAFDecoder {
-    std::shared_ptr<FILE> m_ifp;
-    AudioFileX m_iaf;
-    ExtAudioFileX m_eaf;
-    int64_t m_length;
-    AudioStreamBasicDescription m_iasbd, m_oasbd;
-    std::shared_ptr<AudioChannelLayout> m_channel_layout;
+class StreamReaderImpl: public IStreamReader {
+    std::shared_ptr<FILE> m_fp;
 public:
-    CAFDecoder(const std::wstring &ifilename)
+    StreamReaderImpl(const std::wstring &filename)
     {
-	m_ifp = util::open_file(ifilename, L"rb");
-	AudioFileID iafid;
-	try {
-	    CHECKCA(AudioFileOpenWithCallbacks(m_ifp.get(), callback::read, 0, 
-					       callback::size, 0, 0, &iafid));
-	} catch (const CoreAudioException &e) {
-	    std::stringstream ss;
-	    ss << strutil::w2m(ifilename, utf8_codecvt_facet())
-	       << ": " << e.what();
-	    throw std::runtime_error(ss.str());
-	}
-	m_iaf.attach(iafid, true);
-#ifndef _DEBUG
-	if (m_iaf.getFileFormat() != FOURCC('c','a','f','f'))
-	    throw std::runtime_error("Not a CAF file");
-#endif
-	std::vector<AudioFormatListItem> aflist;
-	m_iaf.getFormatList(&aflist);
-	m_iasbd = aflist[0].mASBD;
-#ifndef _DEBUG
-	if (m_iasbd.mFormatID == FOURCC('a','a','c','p'))
-	    throw std::runtime_error("HE-AACv2 is not supported");
-#endif
-	ExtAudioFileRef eaf;
-	CHECKCA(ExtAudioFileWrapAudioFileID(m_iaf, false, &eaf));
-	m_eaf.attach(eaf, true);
-
-	m_length = m_eaf.getFileLengthFrames();
-	m_eaf.getFileChannelLayout(&m_channel_layout);
-
-	m_oasbd = m_iasbd;
-	if (m_iasbd.mFormatID == 'lpcm') {
-	    m_oasbd.mFormatFlags &= 0xf;
-	    if (m_iasbd.mBitsPerChannel & 0x7)
-		m_oasbd.mFormatFlags |= kAudioFormatFlagIsAlignedHigh;
-	    m_oasbd.mFormatFlags &= ~kAudioFormatFlagIsBigEndian;
-	    if (m_iasbd.mBitsPerChannel == 8)
-		m_oasbd.mFormatFlags &= ~kAudioFormatFlagIsSignedInteger;
-	} else {
-	    // XXX
-	    // Seems no way to obtain reasonable decoding bit depth
-	    bool isFloat = (m_iasbd.mFormatID == FOURCC('a','a','c',' ') ||
-			    m_iasbd.mFormatID == FOURCC('a','a','c','h') ||
-			    m_iasbd.mFormatID == FOURCC('a','a','c','p') ||
-			    m_iasbd.mFormatID == FOURCC('.','m','p','1') ||
-			    m_iasbd.mFormatID == FOURCC('.','m','p','2') ||
-			    m_iasbd.mFormatID == FOURCC('.','m','p','3') ||
-			    m_iasbd.mFormatID == FOURCC('a','c','-','3') ||
-			    m_iasbd.mFormatID == FOURCC('c','a','c','3') ||
-			    m_iasbd.mFormatID == FOURCC('t','w','v','q'));
-
-	    if (m_iasbd.mFormatID == 'alac') {
-		unsigned tab[] = { 16, 20, 24, 32 };
-		unsigned index = (m_iasbd.mFormatFlags - 1) & 0x3;
-		m_oasbd.mBitsPerChannel = tab[index];
-	    } else if (isFloat)
-		m_oasbd.mBitsPerChannel = 32;
-	    else
-		m_oasbd.mBitsPerChannel = 16;
-
-	    m_oasbd.mFormatID = FOURCC('l','p','c','m');
-	    m_oasbd.mFormatFlags =
-		(m_oasbd.mBitsPerChannel & 0x7) ? kAudioFormatFlagIsAlignedHigh
-						: kAudioFormatFlagIsPacked;
-	    if (isFloat)
-		m_oasbd.mFormatFlags |= kAudioFormatFlagIsFloat;
-	    else
-		m_oasbd.mFormatFlags |= kAudioFormatFlagIsSignedInteger;
-	}
-	m_oasbd.mFramesPerPacket = 1;
-	m_oasbd.mBytesPerFrame = m_oasbd.mChannelsPerFrame *
-	    ((m_oasbd.mBitsPerChannel + 7) >> 3);
-	m_oasbd.mBytesPerPacket = m_oasbd.mBytesPerFrame;
-	m_eaf.setClientDataFormat(m_oasbd);
+	m_fp = util::open_file(filename, L"rb");
     }
-
-    int64_t length() const { return m_length; }
-
-    const AudioStreamBasicDescription &getInputFormat() const
+    int fd() const
     {
-	return m_iasbd;
+	return _fileno(m_fp.get());
     }
-    const AudioStreamBasicDescription &getOutputFormat() const
+    ssize_t read(void *data, size_t size)
     {
-	return m_oasbd;
+	return _read(fd(), data, size);
     }
-    const AudioChannelLayout *getChannelLayout() const
+    int seek(int64_t off, int whence)
     {
-	return m_channel_layout.get();
+	int64_t newoff = _lseeki64(fd(), off, whence);
+	return newoff < 0 ? -1 : 0;
     }
-    uint32_t readSamples(void *buffer, size_t nsamples)
+    int64_t get_position()
     {
-	AudioBufferList abl = { 0 };
-	abl.mNumberBuffers = 1;
-	abl.mBuffers[0].mNumberChannels = m_oasbd.mChannelsPerFrame;
-	abl.mBuffers[0].mData = buffer;
-	abl.mBuffers[0].mDataByteSize = nsamples * m_oasbd.mBytesPerPacket;
-	UInt32 ns = nsamples;
-	CHECKCA(ExtAudioFileRead(m_eaf, &ns, &abl));
-	return ns;
+	return _lseeki64(fd(), 0, SEEK_CUR);
+    }
+    int64_t get_size()
+    {
+	return _filelengthi64(fd());
     }
 };
 
@@ -171,8 +68,8 @@ class WaveMuxer {
 public:
     WaveMuxer(std::shared_ptr<FILE> &ofp,
 	      const AudioStreamBasicDescription &asbd,
-	      const AudioChannelLayout *acl)
-	: m_chanmask(0),
+	      uint32_t chanmask)
+	: m_chanmask(chanmask),
 	  m_data_pos(0),
 	  m_bytes_written(0),
 	  m_ofp(ofp),
@@ -183,15 +80,6 @@ public:
 	    util::throw_crt_error("fstat()");
 	m_seekable = ((stb.st_mode & S_IFMT) == S_IFREG);
 
-	if (acl) {
-	    std::vector<char> ichannels, ochannels;
-	    chanmap::getChannels(acl, &ichannels);
-	    if (ichannels.size()) {
-		chanmap::convertFromAppleLayout(ichannels, &ochannels);
-		m_chanmask = chanmap::getChannelMask(ochannels);
-		chanmap::getMappingToUSBOrder(ochannels, &m_chanmap);
-	    }
-	}
 	std::string header = buildHeader();
 
 	uint32_t hdrsize = header.size();
@@ -208,16 +96,7 @@ public:
     void writeSamples(const void *data, size_t nsamples)
     {
 	size_t nbytes = nsamples * m_asbd.mBytesPerFrame;
-	if (!m_chanmap.size())
-	    write(data, nbytes);
-	else {
-	    const uint8_t *bp = reinterpret_cast<const uint8_t*>(data);
-	    uint32_t bpf = m_asbd.mBytesPerFrame;
-	    uint32_t bpc = bpf / m_asbd.mChannelsPerFrame;
-	    for (size_t i = 0; i < nsamples; ++i, bp += bpf)
-		for (size_t j = 0; j < m_chanmap.size(); ++j)
-		    write(bp + bpc * (m_chanmap[j] - 1), bpc);
-	}
+	write(data, nbytes);
 	m_bytes_written += nbytes;
     }
 private:
@@ -285,12 +164,14 @@ private:
 static
 void process(const std::wstring &ifilename, std::shared_ptr<FILE> &ofp)
 {
-    CAFDecoder decoder(ifilename);
+    std::shared_ptr<IStreamReader>
+	reader(new StreamReaderImpl(ifilename));
+    CAFDecoder decoder(reader);
     WaveMuxer muxer(ofp, decoder.getOutputFormat(),
-		    decoder.getChannelLayout());
+		    decoder.getChannelMask());
     int percent = 0;
     try {
-	uint64_t total = decoder.length();
+	uint64_t total = decoder.getLength();
 	uint64_t samples_read = 0;
 	uint32_t bpf = decoder.getOutputFormat().mBytesPerFrame;
 	std::vector<uint8_t> buffer(4096 * bpf);

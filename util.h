@@ -78,7 +78,7 @@ namespace util {
 	if (!fp) throw_crt_error(fname);
 	return std::shared_ptr<FILE>(fp, std::fclose);
     }
-    inline std::wstring GetModuleFileNameX(HMODULE module)
+    inline std::wstring GetModuleFileNameX(HMODULE module=0)
     {
 	std::vector<wchar_t> buffer(32);
 	DWORD cclen = GetModuleFileNameW(module, &buffer[0],
@@ -90,11 +90,11 @@ namespace util {
 	}
 	return std::wstring(&buffer[0], &buffer[cclen]);
     }
-    inline std::wstring get_module_directory()
+    inline std::wstring get_module_directory(HMODULE module=0)
     {
-	std::wstring selfpath = GetModuleFileNameX(0);
-	const wchar_t *fpos = PathFindFileNameW(selfpath.c_str());
-	return selfpath.substr(0, fpos - selfpath.c_str());
+	std::wstring path = GetModuleFileNameX(module);
+	const wchar_t *fpos = PathFindFileNameW(path.c_str());
+	return path.substr(0, fpos - path.c_str());
     }
     inline void shift_file_content(FILE *fp, int64_t space)
     {

@@ -30,6 +30,9 @@
     <ClCompile Include="chanmap.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="CAFDecoder.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AudioFileX.h">
@@ -66,6 +69,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="chanmap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CAFDecoder.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
