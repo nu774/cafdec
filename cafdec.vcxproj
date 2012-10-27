@@ -80,9 +80,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="AudioFileX.cpp" />
     <ClCompile Include="cafdec.cpp" />
     <ClCompile Include="CAFDecoder.cpp" />
+    <ClCompile Include="cautil.cpp" />
     <ClCompile Include="chanmap.cpp" />
     <ClCompile Include="strutil.cpp" />
     <ClCompile Include="utf8_codecvt_facet.cpp" />
@@ -91,6 +91,7 @@
   <ItemGroup>
     <ClInclude Include="AudioFileX.h" />
     <ClInclude Include="CAFDecoder.h" />
+    <ClInclude Include="cautil.h" />
     <ClInclude Include="chanmap.h" />
     <ClInclude Include="CoreAudio\AudioFile.h" />
     <ClInclude Include="CoreAudio\AudioFormat.h" />
