@@ -8,6 +8,7 @@
 #include <delayimp.h>
 #include <crtdbg.h>
 #include "utf8_codecvt_facet.hpp"
+#include "wgetopt.h"
 #include "strutil.h"
 #include "util.h"
 #include "CAFDecoder.h"
@@ -61,6 +62,7 @@ class WaveMuxer {
     bool m_seekable;
     uint32_t m_chanmask;
     uint32_t m_data_pos;
+    uint64_t m_duration;
     uint64_t m_bytes_written;
     std::shared_ptr<FILE> m_ofp;
     std::vector<uint32_t> m_chanmap;
@@ -83,11 +85,17 @@ public:
 	std::string header = buildHeader();
 
 	uint32_t hdrsize = header.size();
-	write("RIFF\0\0\0\0WAVEfmt ", 16);
+	write("RIFF\377\377\377\377WAVE", 12);
+	if (m_seekable) {
+	    write("JUNK", 4);
+	    static const char filler[32] = { 0x1c, 0 };
+	    write(filler, 32);
+	}
+	write("fmt ", 4);
 	write(&hdrsize, 4);
 	write(header.c_str(), hdrsize);
-	write("data\0\0\0\0", 8);
-	m_data_pos = 28 + hdrsize;
+	write("data\377\377\377\377", 8);
+	m_data_pos = 28 + hdrsize + (m_seekable ? 36 : 0);
     }
     ~WaveMuxer()
     {
@@ -147,8 +155,7 @@ private:
 	    return;
 	uint64_t datasize64 = m_bytes_written;
 	uint64_t riffsize64 = m_data_pos + datasize64 - 8;
-	fpos_t pos = 0;
-	if (riffsize64 >> 32 == 0 && !std::fgetpos(m_ofp.get(), &pos)) {
+	if (riffsize64 >> 32 == 0) {
 	    if (!std::fseek(m_ofp.get(), m_data_pos - 4, SEEK_SET)) {
 		uint32_t size32 = static_cast<uint32_t>(datasize64);
 		write(&size32, 4);
@@ -157,12 +164,23 @@ private:
 		    write(&size32, 4);
 		}
 	    }
+	} else {
+	    std::rewind(m_ofp.get());
+	    write("RF64", 4);
+	    std::fseek(m_ofp.get(), 8, SEEK_CUR);
+	    write("ds64", 4);
+	    std::fseek(m_ofp.get(), 4, SEEK_CUR);
+	    write(&riffsize64, 8);
+	    write(&datasize64, 8);
+	    uint64_t nsamples = m_bytes_written / m_asbd.mBytesPerFrame;
+	    write(&nsamples, 8);
 	}
     }
 };
 
 static
-void process(const std::wstring &ifilename, std::shared_ptr<FILE> &ofp)
+void process(const std::wstring &ifilename, std::shared_ptr<FILE> &ofp,
+	     int64_t skip, int64_t duration)
 {
     std::shared_ptr<IStreamReader>
 	reader(new StreamReaderImpl(ifilename));
@@ -171,12 +189,18 @@ void process(const std::wstring &ifilename, std::shared_ptr<FILE> &ofp)
 		    decoder.getChannelMask());
     int percent = 0;
     try {
-	uint64_t total = decoder.getLength();
-	uint64_t samples_read = 0;
+	int64_t total = decoder.getLength();
+	decoder.seek(std::min(total, skip));
+	total = std::max(total - skip, 0LL);
+	total = std::min(total, duration);
+
+	int64_t samples_read = 0;
 	uint32_t bpf = decoder.getOutputFormat().mBytesPerFrame;
 	std::vector<uint8_t> buffer(4096 * bpf);
 	size_t nsamples;
 	while ((nsamples = decoder.readSamples(&buffer[0], 4096)) > 0) {
+	    if (samples_read + nsamples > total)
+		nsamples = total - samples_read;
 	    muxer.writeSamples(&buffer[0], nsamples);
 	    samples_read += nsamples;
 	    int p = 100.0 * samples_read / total + 0.5;
@@ -234,7 +258,13 @@ FARPROC WINAPI dll_failure_hook(unsigned notify, PDelayLoadInfo pdli)
 
 void usage()
 {
-    std::fwprintf(stderr, L"usage: cafdec INFILE [OUTFILE]\n");
+    std::fputws(
+L"Usage: cafdec [-s number] [-n number] INFILE [OUTFILE]\n"
+L"\n"
+L"Options:\n"
+L"-s number          skip samples at beginning\n"
+L"-n number          set decode duration with number of samples\n"
+    , stderr);
     std::exit(1);
 }
 
@@ -246,18 +276,36 @@ int wmain(int argc, wchar_t **argv)
     _setmode(2, _O_U8TEXT);
     std::setbuf(stderr, 0);
 
-    if (argc < 2)
+    int64_t skip = 0;
+    int64_t duration = std::numeric_limits<int64_t>::max();
+    int ch;
+    while ((ch = getopt::getopt(argc, argv, L"s:n:")) != -1) {
+	switch (ch) {
+	case 's':
+	    if (std::swscanf(getopt::optarg, L"%lld", &skip) != 1)
+		usage();
+	    break;
+	case 'n':
+	    if (std::swscanf(getopt::optarg, L"%lld", &duration) != 1)
+		usage();
+	    break;
+	default:
+	    usage();
+	}
+    }
+    argc -= getopt::optind;
+    argv += getopt::optind;
+    if (argc < 1)
 	usage();
     try {
         set_dll_directories();
 	__pfnDliFailureHook2 = dll_failure_hook;
 	std::wstring ofilename;
-	if (argc > 2)
-	    ofilename = argv[2];
+	if (argc > 1)
+	    ofilename = argv[1];
 	else {
-	    std::wstring basename = PathFindFileNameW(argv[1]);
-	    ofilename =
-		util::PathReplaceExtension(basename, L"wav");
+	    std::wstring basename = PathFindFileNameW(argv[0]);
+	    ofilename = util::PathReplaceExtension(basename, L"wav");
 	}
 	std::shared_ptr<FILE> ofp;
 	if (ofilename != L"-")
@@ -268,11 +316,11 @@ int wmain(int argc, wchar_t **argv)
 	    struct Lambda { static void call(FILE *fp) {} };
 	    ofp = std::shared_ptr<FILE>(stdout, Lambda::call);
 	}
-	process(argv[1], ofp);
+	process(argv[0], ofp, skip, duration);
 	return 0;
     } catch (const std::exception & e) {
 	std::fwprintf(stderr, L"ERROR: %s\n",
-		 strutil::m2w(e.what(), utf8_codecvt_facet()));
+		      strutil::m2w(e.what(), utf8_codecvt_facet()));
 	return 2;
     }
 }

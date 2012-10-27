@@ -49,14 +49,14 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>advapi32.lib;shlwapi.lib;CoreAudioToolbox.lib;CoreFoundation.lib</AdditionalDependencies>
-      <DelayLoadDLLs>CoreAudioToolbox.dll;CoreFoundation.dll</DelayLoadDLLs>
+      <AdditionalDependencies>advapi32.lib;shlwapi.lib;CoreAudioToolbox.lib</AdditionalDependencies>
+      <DelayLoadDLLs>CoreAudioToolbox.dll</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -67,7 +67,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -75,8 +75,8 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalLibraryDirectories>lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>advapi32.lib;shlwapi.lib;CoreAudioToolbox.lib;CoreFoundation.lib</AdditionalDependencies>
-      <DelayLoadDLLs>CoreAudioToolbox.dll;CoreFoundation.dll</DelayLoadDLLs>
+      <AdditionalDependencies>advapi32.lib;shlwapi.lib;CoreAudioToolbox.lib</AdditionalDependencies>
+      <DelayLoadDLLs>CoreAudioToolbox.dll</DelayLoadDLLs>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -86,6 +86,7 @@
     <ClCompile Include="chanmap.cpp" />
     <ClCompile Include="strutil.cpp" />
     <ClCompile Include="utf8_codecvt_facet.cpp" />
+    <ClCompile Include="wgetopt.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AudioFileX.h" />
@@ -101,6 +102,7 @@
     <ClInclude Include="strutil.h" />
     <ClInclude Include="utf8_codecvt_facet.hpp" />
     <ClInclude Include="util.h" />
+    <ClInclude Include="wgetopt.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
