@@ -85,8 +85,8 @@
     <ClCompile Include="cautil.cpp" />
     <ClCompile Include="chanmap.cpp" />
     <ClCompile Include="strutil.cpp" />
-    <ClCompile Include="utf8_codecvt_facet.cpp" />
     <ClCompile Include="wgetopt.cpp" />
+    <ClCompile Include="win32util.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AudioFileX.h" />
@@ -101,9 +101,9 @@
     <ClInclude Include="CoreAudio\MacTypes.h" />
     <ClInclude Include="ExtAudioFileX.h" />
     <ClInclude Include="strutil.h" />
-    <ClInclude Include="utf8_codecvt_facet.hpp" />
     <ClInclude Include="util.h" />
     <ClInclude Include="wgetopt.h" />
+    <ClInclude Include="win32util.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

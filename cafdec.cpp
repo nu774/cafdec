@@ -7,11 +7,21 @@
 #include <shlwapi.h>
 #include <delayimp.h>
 #include <crtdbg.h>
-#include "utf8_codecvt_facet.hpp"
 #include "wgetopt.h"
 #include "strutil.h"
 #include "util.h"
+#include "win32util.h"
 #include "CAFDecoder.h"
+
+namespace util {
+    std::shared_ptr<FILE> open_file(const std::wstring &fname,
+				    const wchar_t *mode)
+    {
+	FILE * fp = _wfopen(fname.c_str(), mode);
+	if (!fp) throw_crt_error(fname);
+	return std::shared_ptr<FILE>(fp, std::fclose);
+    }
+}
 
 class StreamReaderImpl: public IStreamReader {
     std::shared_ptr<FILE> m_fp;
@@ -242,7 +252,7 @@ void set_dll_directories()
 	    }
 	}
     }
-    std::wstring dir = util::get_module_directory() + L"QTfiles";
+    std::wstring dir = win32::get_module_directory() + L"QTfiles";
     std::wstringstream ss;
     ss << dir << L";" << searchPaths;
     searchPaths = ss.str();
@@ -252,7 +262,7 @@ void set_dll_directories()
 static
 FARPROC WINAPI dll_failure_hook(unsigned notify, PDelayLoadInfo pdli)
 {
-    util::throw_win32_error(pdli->szDll, pdli->dwLastError);
+    win32::throw_error(pdli->szDll, pdli->dwLastError);
     return 0;
 }
 
@@ -305,7 +315,7 @@ int wmain(int argc, wchar_t **argv)
 	    ofilename = argv[1];
 	else {
 	    std::wstring basename = PathFindFileNameW(argv[0]);
-	    ofilename = util::PathReplaceExtension(basename, L"wav");
+	    ofilename = win32::PathReplaceExtension(basename, L"wav");
 	}
 	std::shared_ptr<FILE> ofp;
 	if (ofilename != L"-")
@@ -319,8 +329,7 @@ int wmain(int argc, wchar_t **argv)
 	process(argv[0], ofp, skip, duration);
 	return 0;
     } catch (const std::exception & e) {
-	std::fwprintf(stderr, L"ERROR: %s\n",
-		      strutil::m2w(e.what(), utf8_codecvt_facet()));
+	std::fwprintf(stderr, L"ERROR: %s\n", strutil::us2w(e.what()));
 	return 2;
     }
 }

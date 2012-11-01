@@ -21,9 +21,6 @@
     <ClCompile Include="strutil.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="utf8_codecvt_facet.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="chanmap.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -36,6 +33,9 @@
     <ClCompile Include="cautil.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="win32util.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AudioFileX.h">
@@ -45,9 +45,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="strutil.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="utf8_codecvt_facet.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="util.h">
@@ -81,6 +78,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="cautil.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="win32util.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
