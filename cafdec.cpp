@@ -13,22 +13,12 @@
 #include "win32util.h"
 #include "CAFDecoder.h"
 
-namespace util {
-    std::shared_ptr<FILE> open_file(const std::wstring &fname,
-				    const wchar_t *mode)
-    {
-	FILE * fp = _wfopen(fname.c_str(), mode);
-	if (!fp) throw_crt_error(fname);
-	return std::shared_ptr<FILE>(fp, std::fclose);
-    }
-}
-
 class StreamReaderImpl: public IStreamReader {
     std::shared_ptr<FILE> m_fp;
 public:
     StreamReaderImpl(const std::wstring &filename)
     {
-	m_fp = util::open_file(filename, L"rb");
+	m_fp = win32::fopen(filename, L"rb");
     }
     int fd() const
     {
@@ -283,6 +273,7 @@ int wmain(int argc, wchar_t **argv)
 #ifdef _DEBUG
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF|_CRTDBG_CHECK_ALWAYS_DF);
 #endif
+    _setmode(0, _O_BINARY);
     _setmode(2, _O_U8TEXT);
     std::setbuf(stderr, 0);
 
@@ -317,15 +308,9 @@ int wmain(int argc, wchar_t **argv)
 	    std::wstring basename = PathFindFileNameW(argv[0]);
 	    ofilename = win32::PathReplaceExtension(basename, L"wav");
 	}
-	std::shared_ptr<FILE> ofp;
-	if (ofilename != L"-")
-	    ofp = util::open_file(ofilename, L"wb");
-	else {
+	if (ofilename == L"-")
 	    _setmode(1, _O_BINARY);
-	    std::setbuf(stdout, 0);
-	    struct Lambda { static void call(FILE *fp) {} };
-	    ofp = std::shared_ptr<FILE>(stdout, Lambda::call);
-	}
+	std::shared_ptr<FILE> ofp = win32::fopen(ofilename, L"wb");
 	process(argv[0], ofp, skip, duration);
 	return 0;
     } catch (const std::exception & e) {
