@@ -29,7 +29,7 @@ CAFDecoder::CAFDecoder(std::shared_ptr<IStreamReader> &pstream)
     std::vector<AudioFormatListItem> aflist;
     m_iaf.getFormatList(&aflist);
     m_iasbd = aflist[0].mASBD;
-#ifndef _DEBUG
+#if 0
     if (m_iasbd.mFormatID == kAudioFormatMPEG4AAC_HE_V2)
 	throw std::runtime_error("HE-AACv2 is not supported");
 #endif
