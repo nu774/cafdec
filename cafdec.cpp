@@ -360,7 +360,7 @@ int wmain(int argc, wchar_t **argv)
             ofilename = argv[1];
         else {
             std::wstring basename = PathFindFileNameW(argv[0]);
-            ofilename = win32::PathReplaceExtension(basename, L"wav");
+            ofilename = win32::PathReplaceExtension(basename, L".wav");
         }
         if (ofilename == L"-")
             _setmode(1, _O_BINARY);
