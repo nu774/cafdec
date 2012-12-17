@@ -219,17 +219,20 @@ void process(const std::wstring &ifilename, std::shared_ptr<FILE> &ofp,
 static
 std::wstring getAppleApplicationSupportPath()
 {
-    HKEY hKey;
+    HKEY hKey = 0;
     const wchar_t *subkey =
 	L"SOFTWARE\\Apple Inc.\\Apple Application Support";
-    if (SUCCEEDED(RegOpenKeyExW(HKEY_LOCAL_MACHINE, subkey, 0,
-				KEY_READ, &hKey))) {
+    LSTATUS rc = RegOpenKeyExW(HKEY_LOCAL_MACHINE, subkey, 0,
+			       KEY_READ, &hKey);
+    if (rc == ERROR_SUCCESS) {
 	std::shared_ptr<HKEY__> hKeyPtr(hKey, RegCloseKey);
 	DWORD size;
-	if (SUCCEEDED(RegQueryValueExW(hKey, L"InstallDir", 0, 0, 0, &size))) {
+	rc = RegQueryValueExW(hKey, L"InstallDir", 0, 0, 0, &size);
+	if (rc == ERROR_SUCCESS) {
 	    std::vector<wchar_t> vec(size/sizeof(wchar_t));
-	    if (SUCCEEDED(RegQueryValueExW(hKey, L"InstallDir", 0, 0,
-			reinterpret_cast<LPBYTE>(&vec[0]), &size)))
+	    rc = RegQueryValueExW(hKey, L"InstallDir", 0, 0,
+				  reinterpret_cast<LPBYTE>(&vec[0]), &size);
+	    if (rc == ERROR_SUCCESS)
 		return &vec[0];
 	}
     }
