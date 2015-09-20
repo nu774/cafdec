@@ -365,7 +365,7 @@ int wmain(int argc, wchar_t **argv)
         process(argv[0], ofp, skip, duration);
         return 0;
     } catch (const std::exception & e) {
-        std::fwprintf(stderr, L"ERROR: %s\n", strutil::us2w(e.what()));
+        std::fwprintf(stderr, L"ERROR: %s\n", strutil::us2w(e.what()).c_str());
         return 2;
     }
 }
