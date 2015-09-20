@@ -77,10 +77,7 @@ public:
           m_ofp(ofp),
           m_asbd(asbd)
     {
-        struct stat stb = { 0 };
-        if (fstat(_fileno(m_ofp.get()), &stb))
-            util::throw_crt_error("fstat()");
-        m_seekable = ((stb.st_mode & S_IFMT) == S_IFREG);
+        m_seekable = util::is_seekable(_fileno(m_ofp.get()));
 
         std::string header = buildHeader();
 
